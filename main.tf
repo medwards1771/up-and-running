@@ -1,5 +1,12 @@
+terraform {
+  required_version = ">= 0.12, < 0.13"
+}
+
 provider "aws" {
   region = "us-east-2"
+
+  # Allow any 2.x version of the AWS provider
+  version = "~> 2.0"
 }
 
 resource "aws_launch_configuration" "example" {
@@ -57,10 +64,12 @@ data "aws_subnet_ids" "default" {
 }
 
 resource "aws_lb" "example" {
-  name                = "terraform-asg-example"
-  load_balancer_type  = "application"
-  subnets             = data.aws_subnet_ids.default.ids
-  security_groups     = [aws_security_group.alb.id]
+
+  name               = var.alb_name
+
+  load_balancer_type = "application"
+  subnets            = data.aws_subnet_ids.default.ids
+  security_groups    = [aws_security_group.alb.id]
 }
 
 resource "aws_lb_listener" "http" {
@@ -68,6 +77,7 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
+  # By default, return a simple 404 page
   default_action {
     type = "fixed-response"
 
@@ -80,10 +90,12 @@ resource "aws_lb_listener" "http" {
 }
 
 resource "aws_lb_target_group" "asg" {
-  name      = "terraform-asg-example"
-  port      = var.server_port
-  protocol  = "HTTP"
-  vpc_id    = data.aws_vpc.default.id
+
+  name = var.alb_name
+
+  port     = var.server_port
+  protocol = "HTTP"
+  vpc_id   = data.aws_vpc.default.id
 
   health_check {
     path                = "/"
@@ -101,8 +113,8 @@ resource "aws_lb_listener_rule" "asg" {
   priority     = 100
 
   condition {
-    field   = "path-pattern"
-    values  = ["*"]
+    field  = "path-pattern"
+    values = ["*"]
   }
 
   action {
@@ -129,27 +141,4 @@ resource "aws_security_group" "alb" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-}
-
-variable "server_port" {
-  description = "The port the server will use for HTTP requests"
-  type        = number
-  default     = 8080
-}
-
-variable "instance_security_group_name" {
-  description = "The name of the security group for the EC2 Instances"
-  type        = string
-  default     = "terraform-example-instance"
-}
-
-variable "alb_security_group_name" {
-  description = "The name of the security group for the ALB"
-  type        = string
-  default     = "terraform-example-alb"
-}
-
-output "alb_dns_name" {
-  value       = aws_lb.example.dns_name
-  description = "The domain name of the load balancer"
 }
